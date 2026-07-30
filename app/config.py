@@ -1,0 +1,44 @@
+"""
+Configuration management for Monitoring Engine
+"""
+
+from pydantic_settings import BaseSettings
+from typing import Optional
+import os
+
+
+class Settings(BaseSettings):
+    """Application settings"""
+    
+    # Database
+    database_url: str = os.getenv("DATABASE_URL", "postgresql://localhost/monitoring")
+    
+    # Redis
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    
+    # Prometheus
+    prometheus_url: str = os.getenv("PROMETHEUS_URL", "")
+    
+    # Monitoring intervals
+    health_check_interval: int = int(os.getenv("HEALTH_CHECK_INTERVAL", "60"))  # seconds
+    metrics_collection_interval: int = int(os.getenv("METRICS_COLLECTION_INTERVAL", "30"))  # seconds
+    
+    # Alert thresholds
+    cpu_warning_threshold: float = float(os.getenv("CPU_WARNING_THRESHOLD", "80.0"))
+    cpu_critical_threshold: float = float(os.getenv("CPU_CRITICAL_THRESHOLD", "90.0"))
+    memory_warning_threshold: float = float(os.getenv("MEMORY_WARNING_THRESHOLD", "80.0"))
+    memory_critical_threshold: float = float(os.getenv("MEMORY_CRITICAL_THRESHOLD", "90.0"))
+    
+    # Application
+    app_name: str = "Monitoring Engine"
+    debug: bool = os.getenv("DEBUG", "false").lower() == "true"
+    
+    # Integration
+    notification_engine_url: str = os.getenv("NOTIFICATION_ENGINE_URL", "http://localhost:8037")
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+
+
+settings = Settings()
