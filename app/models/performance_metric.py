@@ -42,7 +42,7 @@ class PerformanceMetric(Base):
     collected_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Metadata
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     def __repr__(self):
         return f"<PerformanceMetric {self.metric_name} - {self.value}>"

@@ -86,7 +86,7 @@ async def get_service_health(
         
     except Exception as e:
         logger.error(f"Failed to get service health: {e}")
-        raise HTTPException(status_code=500, detail(str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{service_id}")
@@ -118,4 +118,4 @@ async def get_service_health_detail(
         
     except Exception as e:
         logger.error(f"Failed to get service health: {e}")
-        raise HTTPException(status_code=500, detail(str(e))
+        raise HTTPException(status_code=500, detail=str(e))
