@@ -2,7 +2,7 @@
 Performance metric models
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
