@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from loguru import logger
+from datetime import datetime
 import os
 
 from app.config import settings
@@ -84,10 +85,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    logger.info("Health check performed")
     return {
         "status": "healthy",
         "service": "monitoring-engine",
-        "timestamp": logger.info("Health check performed")
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 
