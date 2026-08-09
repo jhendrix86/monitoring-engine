@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  monitoring-engine:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: monitoring-engine
+    ports:
+      - "8043:8043"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/monitoring
+      - REDIS_URL=redis://redis:6379
+      - PROMETHEUS_URL=${PROMETHEUS_URL}
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-60}
+      - METRICS_COLLECTION_INTERVAL=${METRICS_COLLECTION_INTERVAL:-30}
+      - CPU_WARNING_THRESHOLD=${CPU_WARNING_THRESHOLD:-80.0}
+      - CPU_CRITICAL_THRESHOLD=${CPU_CRITICAL_THRESHOLD:-90.0}
+      - MEMORY_WARNING_THRESHOLD=${MEMORY_WARNING_THRESHOLD:-80.0}
+      - MEMORY_CRITICAL_THRESHOLD=${MEMORY_CRITICAL_THRESHOLD:-90.0}
+      - DEBUG=${DEBUG:-false}
+      - NOTIFICATION_ENGINE_URL=http://notification-engine:8037
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: monitoring-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=monitoring
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: monitoring-redis
+    networks:
+      - monitoring-network
+    restart: unless-stopped
+
+networks:
+  monitoring-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
