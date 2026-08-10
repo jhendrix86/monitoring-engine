@@ -10,6 +10,7 @@ import uuid
 import enum
 
 from app.database import Base
+from app.models.tenant_base import TenantBase
 
 
 class HealthStatus(str, enum.Enum):
@@ -20,7 +21,7 @@ class HealthStatus(str, enum.Enum):
     UNKNOWN = "unknown"
 
 
-class HealthCheck(Base):
+class HealthCheck(TenantBase, Base):
     """Health check model"""
     __tablename__ = "health_checks"
     

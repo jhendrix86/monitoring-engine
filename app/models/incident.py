@@ -10,6 +10,7 @@ import uuid
 import enum
 
 from app.database import Base
+from app.models.tenant_base import TenantBase
 
 
 class IncidentStatus(str, enum.Enum):
@@ -21,7 +22,7 @@ class IncidentStatus(str, enum.Enum):
     CLOSED = "closed"
 
 
-class Incident(Base):
+class Incident(TenantBase, Base):
     """Incident model"""
     __tablename__ = "incidents"
     

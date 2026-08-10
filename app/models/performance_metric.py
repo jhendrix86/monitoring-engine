@@ -9,6 +9,7 @@ import uuid
 import enum
 
 from app.database import Base
+from app.models.tenant_base import TenantBase
 
 
 class MetricType(str, enum.Enum):
@@ -20,7 +21,7 @@ class MetricType(str, enum.Enum):
     CUSTOM = "custom"
 
 
-class PerformanceMetric(Base):
+class PerformanceMetric(TenantBase, Base):
     """Performance metric model"""
     __tablename__ = "performance_metrics"
     

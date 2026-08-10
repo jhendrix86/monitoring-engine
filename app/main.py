@@ -13,6 +13,7 @@ import os
 from app.config import settings
 from app.database import init_db
 from app.routers import health, performance, alerts, logs, incidents
+from app.middleware.tenant import tenant_middleware
 
 
 @asynccontextmanager
@@ -45,6 +46,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add tenant middleware for multi-tenancy support
+app.middleware("http")(tenant_middleware)
 
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["health"])

@@ -9,6 +9,7 @@ import uuid
 import enum
 
 from app.database import Base
+from app.models.tenant_base import TenantBase
 
 
 class LogLevel(str, enum.Enum):
@@ -20,7 +21,7 @@ class LogLevel(str, enum.Enum):
     CRITICAL = "critical"
 
 
-class LogEntry(Base):
+class LogEntry(TenantBase, Base):
     """Log entry model"""
     __tablename__ = "log_entries"
     
