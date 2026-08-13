@@ -10,7 +10,7 @@ services:
       - "8043:8043"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/monitoring
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://redis:6379/6
       - PROMETHEUS_URL=${PROMETHEUS_URL}
       - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-60}
       - METRICS_COLLECTION_INTERVAL=${METRICS_COLLECTION_INTERVAL:-30}
@@ -20,36 +20,13 @@ services:
       - MEMORY_CRITICAL_THRESHOLD=${MEMORY_CRITICAL_THRESHOLD:-90.0}
       - DEBUG=${DEBUG:-false}
       - NOTIFICATION_ENGINE_URL=http://notification-engine:8037
-    depends_on:
-      - postgres
-      - redis
+    # No depends_on here - postgres/redis moved to shared infra
+    # (deploy/docker-compose.infra.yml), a different compose project.
+    # Bring that up first: deploy/03-build-and-up.sh infra-up
     networks:
-      - monitoring-network
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: monitoring-postgres
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=monitoring
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - monitoring-network
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: monitoring-redis
-    networks:
-      - monitoring-network
+      - os42-shared
     restart: unless-stopped
 
 networks:
-  monitoring-network:
-    driver: bridge
-
-volumes:
-  postgres-data:
+  os42-shared:
+    external: true
