@@ -3,8 +3,12 @@ version: '3.8'
 services:
   monitoring-engine:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      # Workspace root, not just this repo - needed to reach the
+      # autonomy-events sibling package the Dockerfile copies in (see its
+      # own comment for why - added 2026-08-14 alongside the canonical
+      # Severity mapping).
+      context: ../..
+      dockerfile: monitoring-engine/docker/Dockerfile
     container_name: monitoring-engine
     ports:
       - "8043:8043"
