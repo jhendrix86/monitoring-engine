@@ -55,7 +55,7 @@ async def test_log_entry_requires_level_and_message(db_session):
 
 
 async def test_incident_defaults_to_open_status(db_session):
-    incident = Incident(title="Elevated error rate", severity="high")
+    incident = Incident(title="Elevated error rate", severity=AlertSeverity.CRITICAL)
     db_session.add(incident)
     await db_session.commit()
     await db_session.refresh(incident)

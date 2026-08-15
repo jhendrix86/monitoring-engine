@@ -8,14 +8,27 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+# Sibling package this engine depends on via an editable install (see
+# requirements.txt's "-e ../autonomy-events" line, added 2026-08-14 for
+# the canonical Severity scale - app/severity_mapping.py). The build
+# context is the workspace root (see docker-compose.yml's
+# `context: ../..`) specifically so this is reachable - COPY can't reach
+# outside its build context. Copied to /app/autonomy-events so it sits
+# exactly one level up from WORKDIR below, matching pip's real
+# resolution rule for "-e ../X": relative to the process's cwd at
+# install time, not to requirements.txt's own location (verified
+# empirically - see content-engine's 2026-08-12 Docker-build-fix commit
+# for the full writeup, same pattern applied here).
+COPY autonomy-events/ /app/autonomy-events/
+
+WORKDIR /app/monitoring-engine
+COPY monitoring-engine/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
-COPY app/ ./app/
+COPY monitoring-engine/app/ ./app/
 
 # Expose port
 EXPOSE 8043

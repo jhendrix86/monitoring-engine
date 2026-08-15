@@ -45,3 +45,6 @@ asgi-lifespan>=2.1.0  # test-only: drives FastAPI startup/shutdown in tests
 # Utilities
 python-dotenv==1.0.0
 pyyaml==6.0.1
+
+# Shared fleet package - canonical Severity scale (app/severity_mapping.py)
+-e ../autonomy-events

@@ -5,28 +5,81 @@ System monitoring and alerting system for the Autonomous Company OS
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from loguru import logger
 from datetime import datetime
+import asyncio
 import os
 
+from app import database as database_module
 from app.config import settings
 from app.database import init_db
+from app.health_poller import poll_all_services
+from app.self_metrics import collect_self_metrics
 from app.routers import health, performance, alerts, logs, incidents
 from app.middleware.tenant import tenant_middleware
+
+_polling_task: asyncio.Task | None = None
+_metrics_task: asyncio.Task | None = None
+
+
+async def _health_polling_loop():
+    """
+    Background loop: real health polling of every registered engine on
+    settings.health_check_interval, persisting a HealthCheck row per
+    service each pass. A failed iteration (e.g. every engine down) is
+    logged and skipped, never crashes the loop - this is the fleet's own
+    monitoring, so it has to keep running even when everything it watches
+    is unhealthy.
+    """
+    while True:
+        try:
+            async with database_module.AsyncSessionLocal() as session:
+                await poll_all_services(session)
+        except Exception as exc:
+            logger.error(f"Health polling loop iteration failed: {exc}")
+        await asyncio.sleep(settings.health_check_interval)
+
+
+async def _metrics_collection_loop():
+    """Background loop: real psutil self-metrics on settings.metrics_collection_interval."""
+    while True:
+        try:
+            async with database_module.AsyncSessionLocal() as session:
+                for metric in collect_self_metrics():
+                    session.add(metric)
+                await session.commit()
+        except Exception as exc:
+            logger.error(f"Metrics collection loop iteration failed: {exc}")
+        await asyncio.sleep(settings.metrics_collection_interval)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
+    global _polling_task, _metrics_task
     logger.info("Starting Monitoring Engine...")
-    
+
     # Initialize database
     await init_db()
-    
+
+    if settings.enable_background_loops:
+        _polling_task = asyncio.create_task(_health_polling_loop())
+        _metrics_task = asyncio.create_task(_metrics_collection_loop())
+        logger.info(
+            f"Started background health polling (interval={settings.health_check_interval}s) "
+            f"and self-metrics collection (interval={settings.metrics_collection_interval}s)"
+        )
+
     logger.info("Monitoring Engine started successfully")
     yield
-    
+
+    for task in (_polling_task, _metrics_task):
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
     logger.info("Shutting down Monitoring Engine...")
 
 

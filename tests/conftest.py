@@ -7,6 +7,7 @@ SQLAlchemy models end to end.
 import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite://")
+os.environ.setdefault("ENABLE_BACKGROUND_LOOPS", "false")
 
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
