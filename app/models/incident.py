@@ -10,6 +10,7 @@ import uuid
 import enum
 
 from app.database import Base
+from app.models.alert import AlertSeverity
 from app.models.tenant_base import TenantBase
 
 
@@ -31,7 +32,7 @@ class Incident(TenantBase, Base):
     # Incident details
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
-    severity = Column(String(20), nullable=False)
+    severity = Column(Enum(AlertSeverity), nullable=False)
     status = Column(Enum(IncidentStatus), default=IncidentStatus.OPEN)
     
     # Affected services

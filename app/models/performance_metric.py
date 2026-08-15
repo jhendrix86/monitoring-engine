@@ -2,7 +2,7 @@
 Performance metric models
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Enum
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, JSON, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -32,7 +32,7 @@ class PerformanceMetric(TenantBase, Base):
     metric_name = Column(String(100), nullable=False)
     
     # Value
-    value = Column(Integer, nullable=False)
+    value = Column(Float, nullable=False)
     unit = Column(String(50), nullable=True)
     
     # Context

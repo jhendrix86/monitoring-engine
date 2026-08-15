@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # Monitoring intervals
     health_check_interval: int = int(os.getenv("HEALTH_CHECK_INTERVAL", "60"))  # seconds
     metrics_collection_interval: int = int(os.getenv("METRICS_COLLECTION_INTERVAL", "30"))  # seconds
+
+    # Set to false to disable the background health-polling and
+    # self-metrics loops - used by the test suite so it doesn't spend
+    # every test run polling 13 nonexistent ports on localhost.
+    enable_background_loops: bool = os.getenv("ENABLE_BACKGROUND_LOOPS", "true").lower() == "true"
     
     # Alert thresholds
     cpu_warning_threshold: float = float(os.getenv("CPU_WARNING_THRESHOLD", "80.0"))

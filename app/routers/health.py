@@ -1,121 +1,112 @@
 """
-Health router
+Health router - real HTTP-based polling (app/health_poller.py) persisted
+to the health_checks table, not the hardcoded mock this used to return.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
 from loguru import logger
 
 from app.database import get_db
+from app.health_poller import poll_one_service
 from app.models.health_check import HealthCheck, HealthStatus
+from app.service_registry import SERVICE_PORTS
 
 router = APIRouter()
 
 
+async def _latest_check_per_service(db: AsyncSession) -> dict[str, HealthCheck]:
+    """
+    Most recent HealthCheck row per service_name. Deduped in Python
+    rather than a DB-side DISTINCT ON, since that's Postgres-only and
+    this needs to run identically against the SQLite test database too.
+    """
+    result = await db.execute(select(HealthCheck).order_by(HealthCheck.checked_at.desc()))
+    latest: dict[str, HealthCheck] = {}
+    for check in result.scalars():
+        latest.setdefault(check.service_name, check)
+    return latest
+
+
 @router.get("/system")
-async def get_system_health(
-    db: AsyncSession = Depends(get_db)
-):
-    """Get overall system health"""
+async def get_system_health(db: AsyncSession = Depends(get_db)):
+    """Aggregate overall system health from the latest persisted check per service."""
     try:
-        logger.info("Getting system health")
-        
-        # In production, this would aggregate all service health
-        # For now, return a mock response
-        health = {
-            "overall_status": "healthy",
+        latest = await _latest_check_per_service(db)
+
+        if not latest:
+            return {
+                "overall_status": "unknown",
+                "services": {},
+                "timestamp": datetime.utcnow().isoformat(),
+                "note": "No health checks recorded yet - the background polling loop hasn't completed a pass.",
+            }
+
+        statuses = {check.status for check in latest.values()}
+        if HealthStatus.UNHEALTHY in statuses:
+            overall_status = "unhealthy"
+        elif HealthStatus.DEGRADED in statuses or HealthStatus.UNKNOWN in statuses:
+            overall_status = "degraded"
+        else:
+            overall_status = "healthy"
+
+        return {
+            "overall_status": overall_status,
             "services": {
-                "pricing-intelligence": {"status": "healthy", "uptime": "99.9%"},
-                "funnel-automation": {"status": "healthy", "uptime": "99.8%"},
-                "global-state-manager": {"status": "healthy", "uptime": "99.9%"},
-                "governance-engine": {"status": "healthy", "uptime": "99.9%"},
-                "knowledge-graph": {"status": "healthy", "uptime": "99.7%"},
-                "revenue-operations": {"status": "healthy", "uptime": "99.9%"},
-                "notification-engine": {"status": "healthy", "uptime": "99.8%"},
-                "customer-support": {"status": "healthy", "uptime": "99.9%"},
-                "marketing-automation": {"status": "healthy", "uptime": "99.7%"},
-                "content-engine": {"status": "healthy", "uptime": "99.8%"},
-                "sales-engine": {"status": "healthy", "uptime": "99.9%"},
-                "analytics-engine": {"status": "healthy", "uptime": "99.8%"},
-                "monitoring-engine": {"status": "healthy", "uptime": "100.0%"}
+                name: {"status": check.status.value, "response_time_ms": check.response_time_ms, "checked_at": check.checked_at.isoformat()}
+                for name, check in latest.items()
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
-        return health
-        
+
     except Exception as e:
         logger.error(f"Failed to get system health: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/services")
-async def get_service_health(
-    db: AsyncSession = Depends(get_db)
-):
-    """Get all service health"""
+async def get_service_health(db: AsyncSession = Depends(get_db)):
+    """List the latest persisted health check for every service that's been polled."""
     try:
-        logger.info("Getting service health")
-        
-        # In production, this would query from database
-        # For now, return a mock response
+        latest = await _latest_check_per_service(db)
         services = [
             {
-                "service_name": "pricing-intelligence",
-                "service_type": "pricing",
-                "status": "healthy",
-                "response_time_ms": 45,
-                "checked_at": datetime.utcnow().isoformat()
-            },
-            {
-                "service_name": "funnel-automation",
-                "service_type": "funnel",
-                "status": "healthy",
-                "response_time_ms": 32,
-                "checked_at": datetime.utcnow().isoformat()
+                "service_name": check.service_name,
+                "service_type": check.service_type,
+                "status": check.status.value,
+                "response_time_ms": check.response_time_ms,
+                "error_message": check.error_message,
+                "checked_at": check.checked_at.isoformat(),
             }
+            for check in latest.values()
         ]
-        
-        return {
-            "total": len(services),
-            "services": services
-        }
-        
+        return {"total": len(services), "services": services}
+
     except Exception as e:
         logger.error(f"Failed to get service health: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{service_id}")
-async def get_service_health_detail(
-    service_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get specific service health"""
+async def get_service_health_detail(service_id: str, db: AsyncSession = Depends(get_db)):
+    """Poll one registered service live, right now, and persist + return the fresh result."""
+    if service_id not in SERVICE_PORTS:
+        raise HTTPException(status_code=404, detail=f"Unknown service '{service_id}' - not in the fleet's service registry")
+
     try:
-        logger.info(f"Getting health for service {service_id}")
-        
-        # In production, this would query from database
-        # For now, return a mock response
-        service = {
-            "service_name": service_id,
-            "service_type": "pricing",
-            "status": "healthy",
-            "response_time_ms": 45,
-            "uptime_percentage": 99.9,
-            "last_check": datetime.utcnow().isoformat(),
-            "details": {
-                "cpu_usage": 45.2,
-                "memory_usage": 62.1,
-                "disk_usage": 34.5
-            }
+        check = await poll_one_service(db, service_id)
+        return {
+            "service_name": check.service_name,
+            "service_type": check.service_type,
+            "status": check.status.value,
+            "response_time_ms": check.response_time_ms,
+            "error_message": check.error_message,
+            "details": check.details,
+            "last_check": check.checked_at.isoformat(),
         }
-        
-        return service
-        
+
     except Exception as e:
-        logger.error(f"Failed to get service health: {e}")
+        logger.error(f"Failed to get service health for {service_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
