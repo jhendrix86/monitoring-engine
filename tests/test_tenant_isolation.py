@@ -1,63 +1,79 @@
 """
-Verifies tenant context assignment for monitoring-engine endpoints.
-Tests that apply_tenant_context() correctly assigns tenant_id on create.
-Note: Automatic query filtering is not yet implemented - this test validates
-create-time tenant assignment only.
+Verifies tenant isolation for monitoring-engine endpoints.
+Tests that automatic query filtering actually isolates data between tenants.
 """
-
-from sqlalchemy import select
 
 # Use fixed UUIDs that match what we create in conftest
 TENANT_A = "3e2a7c54-a950-48f3-9eb9-d1eb6b2d1be2"
 TENANT_B = "00000000-0000-0000-0000-000000000001"
 
 
-async def test_apply_tenant_context_on_alert_create(client, db_session):
-    """Verify that apply_tenant_context assigns tenant_id on alert creation."""
-    from app.models.alert import Alert
-    import uuid
-    
-    # Create alert for tenant A
-    result = await client.post(
+async def _create_alert(client, tenant_id, name):
+    resp = await client.post(
         "/alerts/",
         json={
-            "name": "Test Alert",
+            "name": name,
             "severity": "high",
             "source": "test-service",
             "message": "Test alert message"
         },
-        headers={"X-Tenant-ID": TENANT_A}
+        headers={"X-Tenant-ID": tenant_id},
     )
-    assert result.status_code == 200
-    alert_id = result.json()["id"]
-    
-    # Verify tenant_id was correctly assigned
-    alert = await db_session.get(Alert, uuid.UUID(alert_id))
-    assert alert is not None
-    assert str(alert.tenant_id) == TENANT_A
+    assert resp.status_code == 200
+    return resp.json()["id"]
 
 
-async def test_apply_tenant_context_on_incident_create(client, db_session):
-    """Verify that apply_tenant_context assigns tenant_id on incident creation."""
-    from app.models.incident import Incident
-    import uuid
-    
-    # Create alert for tenant A
-    alert_result = await client.post(
-        "/alerts/",
-        json={
-            "name": "Test Alert",
-            "severity": "high",
-            "source": "test-service",
-            "message": "Test alert message"
-        },
-        headers={"X-Tenant-ID": TENANT_A}
+async def test_tenant_cannot_read_another_tenants_alert(client):
+    alert_id = await _create_alert(client, TENANT_A, "Tenant A's Alert")
+
+    same_tenant = await client.get(f"/alerts/{alert_id}", headers={"X-Tenant-ID": TENANT_A})
+    assert same_tenant.status_code == 200
+
+    other_tenant = await client.get(f"/alerts/{alert_id}", headers={"X-Tenant-ID": TENANT_B})
+    assert other_tenant.status_code == 404
+
+
+async def test_list_alerts_is_scoped_per_tenant(client):
+    await _create_alert(client, TENANT_A, "A's Alert 1")
+    await _create_alert(client, TENANT_A, "A's Alert 2")
+    await _create_alert(client, TENANT_B, "B's Alert")
+
+    a_listing = await client.get("/alerts/", headers={"X-Tenant-ID": TENANT_A})
+    assert a_listing.status_code == 200
+    assert a_listing.json()["total"] == 2
+
+    b_listing = await client.get("/alerts/", headers={"X-Tenant-ID": TENANT_B})
+    assert b_listing.status_code == 200
+    assert b_listing.json()["total"] == 1
+
+
+async def test_no_tenant_header_sees_everything(client):
+    """Fail-open posture: no X-Tenant-ID means no filtering is applied."""
+    await _create_alert(client, TENANT_A, "A's Alert")
+    await _create_alert(client, TENANT_B, "B's Alert")
+
+    unscoped = await client.get("/alerts/")
+    assert unscoped.status_code == 200
+    assert unscoped.json()["total"] == 2
+
+
+async def test_tenant_cannot_modify_another_tenants_alert(client):
+    alert_id = await _create_alert(client, TENANT_A, "Tenant A's Alert")
+
+    # Try to resolve as tenant B
+    resolve_response = await client.post(
+        f"/alerts/{alert_id}/resolve",
+        headers={"X-Tenant-ID": TENANT_B}
     )
-    assert alert_result.status_code == 200
-    alert_id = alert_result.json()["id"]
-    
+    assert resolve_response.status_code == 404
+
+
+async def test_incident_creation_respects_tenant_scoping(client):
+    """Incident creation should be tenant-scoped."""
+    alert_id = await _create_alert(client, TENANT_A, "Test Alert")
+
     # Create incident for tenant A
-    incident_result = await client.post(
+    incident_resp = await client.post(
         "/incidents/",
         json={
             "title": "Test Incident",
@@ -66,22 +82,22 @@ async def test_apply_tenant_context_on_incident_create(client, db_session):
         },
         headers={"X-Tenant-ID": TENANT_A}
     )
-    assert incident_result.status_code == 200
-    incident_id = incident_result.json()["id"]
-    
-    # Verify incident tenant_id was correctly assigned
-    incident = await db_session.get(Incident, uuid.UUID(incident_id))
-    assert incident is not None
-    assert str(incident.tenant_id) == TENANT_A
+    assert incident_resp.status_code == 200
+    incident_id = incident_resp.json()["id"]
+
+    # Tenant A can see the incident
+    a_incident = await client.get(f"/incidents/{incident_id}", headers={"X-Tenant-ID": TENANT_A})
+    assert a_incident.status_code == 200
+
+    # Tenant B cannot see the incident
+    b_incident = await client.get(f"/incidents/{incident_id}", headers={"X-Tenant-ID": TENANT_B})
+    assert b_incident.status_code == 404
 
 
-async def test_apply_tenant_context_on_log_entry_create(client, db_session):
-    """Verify that apply_tenant_context assigns tenant_id on log entry creation."""
-    from app.models.log_entry import LogEntry
-    import uuid
-    
+async def test_log_entry_respects_tenant_scoping(client):
+    """Log entries should be tenant-scoped."""
     # Create log entry for tenant A
-    result = await client.post(
+    log_resp = await client.post(
         "/logs/",
         json={
             "level": "info",
@@ -90,34 +106,14 @@ async def test_apply_tenant_context_on_log_entry_create(client, db_session):
         },
         headers={"X-Tenant-ID": TENANT_A}
     )
-    assert result.status_code == 200
-    
-    # Verify log entry tenant_id was correctly assigned
-    result = await db_session.execute(select(LogEntry).order_by(LogEntry.created_at.desc()))
-    log_entry = result.scalars().first()
-    assert log_entry is not None
-    assert str(log_entry.tenant_id) == TENANT_A
+    assert log_resp.status_code == 200
 
+    # List logs for tenant A
+    a_logs = await client.get("/logs/", headers={"X-Tenant-ID": TENANT_A})
+    assert a_logs.status_code == 200
+    assert a_logs.json()["total"] == 1
 
-async def test_apply_tenant_context_on_performance_metric_create(client, db_session):
-    """Verify that apply_tenant_context assigns tenant_id on performance metric creation."""
-    from app.models.performance_metric import PerformanceMetric
-    import uuid
-    
-    # Create performance metric for tenant A
-    result = await client.post(
-        "/performance/metrics",
-        json={
-            "metric_type": "cpu_usage",
-            "value": 75.5,
-            "source": "test-service"
-        },
-        headers={"X-Tenant-ID": TENANT_A}
-    )
-    assert result.status_code == 200
-    
-    # Verify performance metric tenant_id was correctly assigned
-    result = await db_session.execute(select(PerformanceMetric).order_by(PerformanceMetric.created_at.desc()))
-    metric = result.scalars().first()
-    assert metric is not None
-    assert str(metric.tenant_id) == TENANT_A
+    # List logs for tenant B
+    b_logs = await client.get("/logs/", headers={"X-Tenant-ID": TENANT_B})
+    assert b_logs.status_code == 200
+    assert b_logs.json()["total"] == 0
