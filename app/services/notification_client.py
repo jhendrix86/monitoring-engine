@@ -52,7 +52,7 @@ async def send_alert_notification(
                 "recipient_type": "email",
                 "channels": [c.value for c in channels],
                 "subject": f"[{severity.upper()}] {alert_title}",
-                "message": alert_message if alert_message else alert_title,
+                "message": alert_message or alert_title,
                 "data": {
                     "alert_id": alert_id,
                     "severity": severity,
