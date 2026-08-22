@@ -16,6 +16,7 @@ from app.database import get_db
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.tenant_base import apply_tenant_context
 from app.severity_mapping import to_canonical_severity
+from app.services.notification_client import send_alert_notification
 
 router = APIRouter()
 
@@ -86,6 +87,19 @@ async def create_alert(request: CreateAlertRequest, db: AsyncSession = Depends(g
         await db.refresh(alert)
 
         logger.info(f"Alert created: {alert.id}")
+        
+        # Send notification to notification-engine
+        try:
+            await send_alert_notification(
+                alert_id=str(alert.id),
+                alert_title=alert.title,
+                alert_message=alert.message,
+                severity=alert.severity.value,
+            )
+        except Exception as e:
+            logger.warning(f"Notification failed for alert {alert.id}: {e}")
+            # Don't fail the alert creation if notification fails
+        
         return _serialize(alert)
 
     except HTTPException:
