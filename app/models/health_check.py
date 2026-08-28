@@ -2,8 +2,7 @@
 Health check models
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, JSON, Uuid
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -25,7 +24,7 @@ class HealthCheck(TenantBase, Base):
     """Health check model"""
     __tablename__ = "health_checks"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Service details
     service_name = Column(String(100), nullable=False)

@@ -2,8 +2,7 @@
 Incident models
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, Text, JSON, Uuid
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -27,7 +26,7 @@ class Incident(TenantBase, Base):
     """Incident model"""
     __tablename__ = "incidents"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Incident details
     title = Column(String(500), nullable=False)

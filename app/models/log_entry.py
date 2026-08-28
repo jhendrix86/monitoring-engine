@@ -2,8 +2,7 @@
 Log entry models
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, DateTime, Enum, ForeignKey, Text, JSON, Uuid
 from datetime import datetime
 import uuid
 import enum
@@ -25,7 +24,7 @@ class LogEntry(TenantBase, Base):
     """Log entry model"""
     __tablename__ = "log_entries"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Log details
     level = Column(Enum(LogLevel), nullable=False)

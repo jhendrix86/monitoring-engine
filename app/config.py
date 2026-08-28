@@ -40,7 +40,14 @@ class Settings(BaseSettings):
     
     # Integration
     notification_engine_url: str = os.getenv("NOTIFICATION_ENGINE_URL", "http://localhost:8037")
-    
+
+    # Recipient for real alert notifications sent to notification-engine.
+    # Empty by default (honest no-op, not a fabricated success) until
+    # someone actually configures it - matches the fleet's established
+    # "unconfigured = quiet, honest skip" convention (see
+    # notification-engine's own delivery clients' `configured` gates).
+    alert_notification_recipient: str = os.getenv("ALERT_NOTIFICATION_RECIPIENT", "")
+
     class Config:
         env_file = ".env"
         case_sensitive = False

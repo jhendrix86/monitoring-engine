@@ -24,6 +24,7 @@ services:
       - MEMORY_CRITICAL_THRESHOLD=${MEMORY_CRITICAL_THRESHOLD:-90.0}
       - DEBUG=${DEBUG:-false}
       - NOTIFICATION_ENGINE_URL=http://notification-engine:8037
+      - ALERT_NOTIFICATION_RECIPIENT=${ALERT_NOTIFICATION_RECIPIENT:-}
     # No depends_on here - postgres/redis moved to shared infra
     # (deploy/docker-compose.infra.yml), a different compose project.
     # Bring that up first: deploy/03-build-and-up.sh infra-up
