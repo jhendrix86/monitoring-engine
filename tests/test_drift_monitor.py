@@ -157,3 +157,15 @@ async def test_response_time_drift_from_health_checks(db_session):
     alert = await run_drift_check(db_session)
     assert alert is not None
     assert "avg_response_time_ms" in alert.extra_metadata["drift_deviations"]
+    # Regression test: 2026-09-01, this passed against sqlite but crashed
+    # on real Postgres - response_time_ms is an Integer column, and
+    # Postgres' avg() on integer/bigint returns `numeric` (-> Decimal),
+    # unlike avg() on the Float CPU/memory columns. A Decimal in
+    # extra_metadata (a JSON column) isn't JSON-serializable, so commit()
+    # raised. sqlite's avg() always returns float regardless of column
+    # type, so this assertion can't reproduce the crash itself here - it
+    # guards the intended contract (see _avg_metrics' float(...) cast).
+    for value in alert.extra_metadata["current_metrics"].values():
+        assert isinstance(value, float)
+    for value in alert.extra_metadata["baseline_metrics"].values():
+        assert isinstance(value, float)

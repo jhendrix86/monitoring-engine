@@ -62,13 +62,18 @@ async def _avg_metrics(db: AsyncSession, since: datetime, until: datetime) -> di
         select(func.avg(HealthCheck.response_time_ms)).where(_window(HealthCheck.checked_at))
     )
 
+    # float(...) before round(): Postgres' avg() returns `numeric` (->
+    # Decimal) for an integer/bigint column (HealthCheck.response_time_ms)
+    # but stays double precision (-> float) for a Float column (CPU/memory)
+    # - round() preserves whichever type it's given, and a Decimal in
+    # extra_metadata (a JSON column) blows up serialization on commit.
     metrics = {}
     if avg_cpu is not None:
-        metrics["avg_cpu_usage"] = round(avg_cpu, 1)
+        metrics["avg_cpu_usage"] = round(float(avg_cpu), 1)
     if avg_memory is not None:
-        metrics["avg_memory_usage"] = round(avg_memory, 1)
+        metrics["avg_memory_usage"] = round(float(avg_memory), 1)
     if avg_response_time is not None:
-        metrics["avg_response_time_ms"] = round(avg_response_time, 1)
+        metrics["avg_response_time_ms"] = round(float(avg_response_time), 1)
     return metrics
 
 
