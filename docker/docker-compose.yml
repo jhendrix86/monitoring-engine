@@ -4,9 +4,10 @@ services:
   monitoring-engine:
     build:
       # Workspace root, not just this repo - needed to reach the
-      # autonomy-events sibling package the Dockerfile copies in (see its
-      # own comment for why - added 2026-08-14 alongside the canonical
-      # Severity mapping).
+      # autonomy-events + empire-operators sibling packages the Dockerfile
+      # copies in (see its own comment for why - autonomy-events added
+      # 2026-08-14 alongside the canonical Severity mapping, empire-operators
+      # 2026-09-01 for DriftMonitor).
       context: ../..
       dockerfile: monitoring-engine/docker/Dockerfile
     container_name: monitoring-engine
@@ -18,6 +19,9 @@ services:
       - PROMETHEUS_URL=${PROMETHEUS_URL}
       - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-60}
       - METRICS_COLLECTION_INTERVAL=${METRICS_COLLECTION_INTERVAL:-30}
+      - DRIFT_CHECK_INTERVAL=${DRIFT_CHECK_INTERVAL:-300}
+      - DRIFT_CURRENT_WINDOW_HOURS=${DRIFT_CURRENT_WINDOW_HOURS:-1}
+      - DRIFT_BASELINE_WINDOW_HOURS=${DRIFT_BASELINE_WINDOW_HOURS:-24}
       - CPU_WARNING_THRESHOLD=${CPU_WARNING_THRESHOLD:-80.0}
       - CPU_CRITICAL_THRESHOLD=${CPU_CRITICAL_THRESHOLD:-90.0}
       - MEMORY_WARNING_THRESHOLD=${MEMORY_WARNING_THRESHOLD:-80.0}

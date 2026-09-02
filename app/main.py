@@ -16,11 +16,13 @@ from app.config import settings
 from app.database import init_db
 from app.health_poller import poll_all_services
 from app.self_metrics import collect_self_metrics
+from app.drift_monitor import run_drift_check
 from app.routers import health, performance, alerts, logs, incidents
 from app.middleware.tenant import tenant_middleware
 
 _polling_task: asyncio.Task | None = None
 _metrics_task: asyncio.Task | None = None
+_drift_task: asyncio.Task | None = None
 
 
 async def _health_polling_loop():
@@ -54,10 +56,27 @@ async def _metrics_collection_loop():
         await asyncio.sleep(settings.metrics_collection_interval)
 
 
+async def _drift_monitoring_loop():
+    """
+    Background loop: run recorded metrics through the DriftMonitor operator
+    on settings.drift_check_interval, opening a `performance_drift` alert
+    when a metric has moved past threshold vs its baseline window. Same
+    keep-running-through-failure contract as the loops above - a bad pass
+    is logged and skipped, thin/flat data is an honest no-op.
+    """
+    while True:
+        try:
+            async with database_module.AsyncSessionLocal() as session:
+                await run_drift_check(session)
+        except Exception as exc:
+            logger.error(f"Drift monitoring loop iteration failed: {exc}")
+        await asyncio.sleep(settings.drift_check_interval)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    global _polling_task, _metrics_task
+    global _polling_task, _metrics_task, _drift_task
     logger.info("Starting Monitoring Engine...")
 
     # Initialize database
@@ -66,15 +85,17 @@ async def lifespan(app: FastAPI):
     if settings.enable_background_loops:
         _polling_task = asyncio.create_task(_health_polling_loop())
         _metrics_task = asyncio.create_task(_metrics_collection_loop())
+        _drift_task = asyncio.create_task(_drift_monitoring_loop())
         logger.info(
-            f"Started background health polling (interval={settings.health_check_interval}s) "
-            f"and self-metrics collection (interval={settings.metrics_collection_interval}s)"
+            f"Started background health polling (interval={settings.health_check_interval}s), "
+            f"self-metrics collection (interval={settings.metrics_collection_interval}s), "
+            f"and drift monitoring (interval={settings.drift_check_interval}s)"
         )
 
     logger.info("Monitoring Engine started successfully")
     yield
 
-    for task in (_polling_task, _metrics_task):
+    for task in (_polling_task, _metrics_task, _drift_task):
         if task is not None:
             task.cancel()
             with suppress(asyncio.CancelledError):

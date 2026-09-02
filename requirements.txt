@@ -49,3 +49,8 @@ pyyaml==6.0.1
 
 # Shared fleet package - canonical Severity scale (app/severity_mapping.py)
 -e ../autonomy-events
+
+# Shared fleet package - reasoning operators; app/drift_monitor.py uses
+# DriftMonitor. Same sibling-checkout + Docker COPY machinery as
+# autonomy-events above (see docker/Dockerfile).
+-e ../empire-operators

@@ -21,6 +21,11 @@ RUN apt-get update && apt-get install -y \
 # for the full writeup, same pattern applied here).
 COPY autonomy-events/ /app/autonomy-events/
 
+# Second sibling package, same rule as autonomy-events above - see
+# requirements.txt's "-e ../empire-operators" line (app/drift_monitor.py
+# depends on its DriftMonitor operator).
+COPY empire-operators/ /app/empire-operators/
+
 WORKDIR /app/monitoring-engine
 COPY monitoring-engine/requirements.txt .
 
