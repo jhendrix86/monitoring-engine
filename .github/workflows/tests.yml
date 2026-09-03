@@ -13,6 +13,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,4 +45,14 @@ jobs:
 
       - name: Run tests
         working-directory: repo
-        run: pytest -q
+        # pytest finishes fast, but the app leaves a non-daemon background
+        # thread / undisposed async engine alive after the session. In CI
+        # that lingering process holds the step's stdout pipe open and the
+        # log-streamer never sees EOF, so the step hangs until the job cap.
+        # Redirect to a file so the leak holds a file fd, not the pipe;
+        # the step then ends the instant pytest returns.
+        run: |
+          pip install pytest-timeout
+          pytest -q --timeout=120 --timeout-method=thread > pytest.out 2>&1; rc=$?
+          cat pytest.out
+          exit $rc
