@@ -41,18 +41,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio pytest-timeout
 
       - name: Run tests
         working-directory: repo
-        # pytest finishes fast, but the app leaves a non-daemon background
-        # thread / undisposed async engine alive after the session. In CI
-        # that lingering process holds the step's stdout pipe open and the
-        # log-streamer never sees EOF, so the step hangs until the job cap.
-        # Redirect to a file so the leak holds a file fd, not the pipe;
-        # the step then ends the instant pytest returns.
-        run: |
-          pip install pytest-timeout
-          pytest -q --timeout=120 --timeout-method=thread > pytest.out 2>&1; rc=$?
-          cat pytest.out
-          exit $rc
+        # --timeout: kill any single test stuck >60s and dump its traceback
+        # instead of silently eating the whole job. The session-teardown
+        # engine dispose in tests/conftest.py (_dispose_async_engine) is
+        # what lets the pytest process actually exit afterward - aiosqlite's
+        # connection worker is a non-daemon thread that otherwise keeps the
+        # process (and CI's never-EOF'd stdout pipe) alive to the job cap.
+        run: pytest -q --timeout=60 --timeout-method=thread
