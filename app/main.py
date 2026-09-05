@@ -109,7 +109,14 @@ app = FastAPI(
     title="Monitoring Engine",
     description="System monitoring and alerting system for the Autonomous Company OS",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # SECURITY_REVIEW.md finding: /docs, /redoc, /openapi.json were reachable
+    # unauthenticated on every engine (dynamic-pentest-confirmed) - a full
+    # interactive API browser plus every unauth write path. Disabled unless
+    # DEBUG=true.
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 # Configure CORS
