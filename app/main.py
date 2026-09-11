@@ -13,7 +13,7 @@ import os
 
 from app import database as database_module
 from app.config import settings
-from app.database import init_db
+from app.database import init_db, wait_for_database
 from app.health_poller import poll_all_services
 from app.self_metrics import collect_self_metrics
 from app.drift_monitor import run_drift_check
@@ -78,6 +78,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     global _polling_task, _metrics_task, _drift_task
     logger.info("Starting Monitoring Engine...")
+
+    # Wait out any post-reboot window where Postgres isn't accepting
+    # connections yet before the first query. Without this the container
+    # crash-loops instead of self-healing (BA-13).
+    await wait_for_database()
 
     # Initialize database
     await init_db()
